@@ -5,6 +5,7 @@ import streamlit as st
 from ultralytics import YOLO
 from PIL import Image
 import pandas as pd
+import altair as alt
 
 # ------------------ CONFIG ------------------
 
@@ -43,9 +44,20 @@ st.markdown(
         border-right: 1px solid #d0e2ff;
     }
 
-    /* Make all sidebar text dark so it's readable */
+    /* Make sidebar text dark so it's readable */
     [data-testid="stSidebar"] * {
         color: #102a43 !important;
+    }
+
+    /* Keep code blocks readable on dark background */
+    [data-testid="stSidebar"] pre, [data-testid="stSidebar"] code {
+        background: #111827 !important;
+        color: #e5e7eb !important;
+    }
+
+    /* Top toolbar (Share, etc.) */
+    [data-testid="stToolbar"] * {
+        color: #e5e7eb !important;
     }
 
     h2, h3 {
@@ -59,6 +71,7 @@ st.markdown(
         border: none;
         font-weight: 500;
         background: #85c5ff;
+        color: #0f172a;
     }
 
     .stButton>button:hover {
@@ -72,43 +85,83 @@ st.markdown(
         background: #ffffff;
     }
 
+    /* File uploader text & Browse button */
+    [data-testid="stFileUploader"] * {
+        color: #111827 !important;
+    }
+    [data-testid="stFileUploader"] button {
+        background: #111827 !important;
+        color: #f9fafb !important;
+        border-radius: 999px !important;
+        border: none !important;
+    }
+
     .metric-card {
         border-radius: 18px;
-        padding: 1rem 1.25rem;
+        padding: 0.75rem 1rem;
         background: #ffffff;
         border: 1px solid #dbeafe;
     }
 
+    .metric-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #6b7280;
+        margin-bottom: 0.1rem;
+    }
+
+    .metric-value {
+        font-size: 1.15rem;
+        font-weight: 600;
+        color: #111827;
+    }
+
     .logo-circle {
-        width: 52px;
-        height: 52px;
+        width: 60px;
+        height: 60px;
         border-radius: 50%;
         background: #e0f2fe;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 28px;
-        margin-right: 0.5rem;
+        font-size: 32px;
+        margin-bottom: 0.4rem;
+    }
+
+    .header-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        margin-top: 0.5rem;
+        margin-bottom: 0.75rem;
     }
 
     .main-title {
         font-family: 'Bitcount Prop Single', system-ui, -apple-system,
                      BlinkMacSystemFont, 'Poppins', sans-serif;
         font-weight: 600;
-        font-size: 2.1rem;
-        margin-bottom: 0.25rem;
-        margin-top: 0.25rem;
+        font-size: 2.8rem;
+        text-align: center;
         color: #13406b;
     }
 
     .subtitle-text {
         font-size: 0.95rem;
         color: #334e68;
+        text-align: center;
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
+# ------------------ SESSION STATE ------------------
+if "full_results_df" not in st.session_state:
+    st.session_state["full_results_df"] = None
+if "show_download" not in st.session_state:
+    st.session_state["show_download"] = False
 
 # ------------------ MODEL LOADING & INFERENCE ------------------
 @st.cache_resource
@@ -137,10 +190,10 @@ def get_class_counts(result, class_names):
     return dict(counts)
 
 
-def get_defect_locations(result, class_names):
-    """Return a DataFrame with defect type, confidence and bounding box coords."""
+def get_defect_locations(result, class_names, image_name):
+    """Return rows with defect type, confidence and bounding box coords + image name."""
     if len(result.boxes) == 0:
-        return pd.DataFrame(columns=["Defect type", "Confidence", "x1", "y1", "x2", "y2"])
+        return []
 
     boxes = result.boxes
     xyxy = boxes.xyxy.tolist()
@@ -151,6 +204,7 @@ def get_defect_locations(result, class_names):
     for coords, c, cf in zip(xyxy, cls_indices, confs):
         x1, y1, x2, y2 = coords
         rows.append({
+            "Image": image_name,
             "Defect type": class_names[int(c)],
             "Confidence": round(float(cf), 2),
             "x1": round(float(x1), 1),
@@ -159,7 +213,7 @@ def get_defect_locations(result, class_names):
             "y2": round(float(y2), 1),
         })
 
-    return pd.DataFrame(rows)
+    return rows
 
 
 # ------------------ SIDEBAR ------------------
@@ -171,35 +225,46 @@ with st.sidebar:
 
     st.markdown("----")
     st.subheader("Model performance")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("mAP@50", "0.9823")
-        st.metric("Precision", "0.9714")
-    with col2:
-        st.metric("mAP@50-95", "0.5598")
-        st.metric("Recall", "0.9765")
-
-# ------------------ MAIN LAYOUT ------------------
-# Logo + main heading
-logo_col, title_col = st.columns([0.08, 0.92])
-with logo_col:
-    st.markdown('<div class="logo-circle">🛡️</div>', unsafe_allow_html=True)
-with title_col:
     st.markdown(
-        '<div class="main-title">CircuitGuard – PCB Defect Detection</div>',
-        unsafe_allow_html=True,
+        """
+        **mAP@50:** 0.9823  
+        **mAP@50–95:** 0.5598  
+        **Precision:** 0.9714  
+        **Recall:** 0.9765
+        """
     )
 
-# Top metrics row (same numbers as sidebar)
-top_metric_col = st.columns(4)
-with top_metric_col[0]:
-    st.metric("mAP@50", "0.9823")
-with top_metric_col[1]:
-    st.metric("mAP@50-95", "0.5598")
-with top_metric_col[2]:
-    st.metric("Precision", "0.9714")
-with top_metric_col[3]:
-    st.metric("Recall", "0.9765")
+# ------------------ MAIN LAYOUT ------------------
+# Logo + main heading (centered, big)
+st.markdown(
+    """
+    <div class="header-container">
+        <div class="logo-circle">🛡️</div>
+        <div class="main-title">CircuitGuard – PCB Defect Detection</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# Top metrics row with custom cards
+metric_cols = st.columns(4)
+metric_info = [
+    ("mAP@50", "0.9823"),
+    ("mAP@50–95", "0.5598"),
+    ("Precision", "0.9714"),
+    ("Recall", "0.9765"),
+]
+for col, (label, value) in zip(metric_cols, metric_info):
+    with col:
+        st.markdown(
+            f"""
+            <div class="metric-card">
+              <div class="metric-label">{label}</div>
+              <div class="metric-value">{value}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 st.markdown(
     """
@@ -223,6 +288,7 @@ with st.container():
     )
     st.markdown('</div>', unsafe_allow_html=True)
 
+# ------------------ DETECTION & DISPLAY ------------------
 if uploaded_files:
     try:
         model = load_model(MODEL_PATH)
@@ -231,6 +297,7 @@ if uploaded_files:
         st.error(f"Error loading model from `{MODEL_PATH}`: {e}")
     else:
         global_counts = Counter()
+        all_rows = []
 
         for file in uploaded_files:
             st.markdown(f"#### 📷 {file.name}")
@@ -243,7 +310,7 @@ if uploaded_files:
             st.image(
                 plotted_img,
                 caption="Detections",
-                width=550,   # smaller width instead of full container
+                width=550,
             )
 
             # Summary text
@@ -256,25 +323,63 @@ if uploaded_files:
                 counts = get_class_counts(result, class_names)
                 global_counts.update(counts)
 
-                # Show defect locations for this image
-                st.markdown("**Defect locations (bounding boxes in pixels):**")
-                loc_df = get_defect_locations(result, class_names)
-                st.dataframe(loc_df, use_container_width=True)
+                # Defect locations for this image (table on screen)
+                loc_rows = get_defect_locations(result, class_names, file.name)
+                all_rows.extend(loc_rows)
+
+                if loc_rows:
+                    loc_df = pd.DataFrame(loc_rows)
+                    st.markdown("**Defect locations (bounding boxes in pixels):**")
+                    st.dataframe(loc_df.drop(columns=["Image"]), use_container_width=True)
 
             st.markdown("---")
+
+        # Build full results DF for export (all images)
+        if all_rows:
+            full_results_df = pd.DataFrame(all_rows)
+            st.session_state["full_results_df"] = full_results_df
+        else:
+            full_results_df = None
+            st.session_state["full_results_df"] = None
 
         # After processing all images: single combined bar chart
         if sum(global_counts.values()) > 0:
             st.subheader("Overall defect distribution across all uploaded images")
-            global_df = (
-                pd.DataFrame(
-                    {"Defect Type": list(global_counts.keys()),
-                     "Count": list(global_counts.values())}
-                )
-                .set_index("Defect Type")
+            global_df = pd.DataFrame(
+                {"Defect Type": list(global_counts.keys()),
+                 "Count": list(global_counts.values())}
             )
-            st.bar_chart(global_df)
+
+            chart = (
+                alt.Chart(global_df)
+                .mark_bar(size=40)
+                .encode(
+                    x=alt.X("Defect Type:N",
+                            sort="-y",
+                            axis=alt.Axis(labelAngle=0)),
+                    y=alt.Y("Count:Q"),
+                    tooltip=["Defect Type", "Count"],
+                )
+                .properties(height=350)
+            )
+
+            st.altair_chart(chart, use_container_width=True)
         else:
             st.info("No defects detected in any of the uploaded images.")
+
+        # -------- Export flow: Finish + Download --------
+        if st.session_state["full_results_df"] is not None:
+            st.markdown("### Export results")
+            if st.button("Finish defect detection"):
+                st.session_state["show_download"] = True
+
+            if st.session_state["show_download"]:
+                csv = st.session_state["full_results_df"].to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    "Download detection report (CSV)",
+                    data=csv,
+                    file_name="circuitguard_detection_results.csv",
+                    mime="text/csv",
+                )
 else:
     st.info("Upload one or more PCB images to start detection.")
