@@ -1,5 +1,7 @@
 import os
 from collections import Counter
+import io
+import zipfile
 
 import streamlit as st
 from ultralytics import YOLO
@@ -49,10 +51,10 @@ st.markdown(
         color: #102a43 !important;
     }
 
-    /* Keep code blocks readable on dark background */
+    /* Code block for best.pt: light background, dark text */
     [data-testid="stSidebar"] pre, [data-testid="stSidebar"] code {
-        background: #111827 !important;
-        color: #e5e7eb !important;
+        background: #e5e7eb !important;
+        color: #111827 !important;
     }
 
     /* Top toolbar (Share, etc.) */
@@ -86,8 +88,10 @@ st.markdown(
     }
 
     /* File uploader text & Browse button */
-    [data-testid="stFileUploader"] * {
-        color: #111827 !important;
+    [data-testid="stFileUploader"] div,
+    [data-testid="stFileUploader"] span,
+    [data-testid="stFileUploader"] label {
+        color: #f9fafb !important;  /* light text on dark drop area */
     }
     [data-testid="stFileUploader"] button {
         background: #111827 !important;
@@ -160,6 +164,8 @@ st.markdown(
 # ------------------ SESSION STATE ------------------
 if "full_results_df" not in st.session_state:
     st.session_state["full_results_df"] = None
+if "annotated_images" not in st.session_state:
+    st.session_state["annotated_images"] = []
 if "show_download" not in st.session_state:
     st.session_state["show_download"] = False
 
@@ -298,6 +304,7 @@ if uploaded_files:
     else:
         global_counts = Counter()
         all_rows = []
+        annotated_images = []
 
         for file in uploaded_files:
             st.markdown(f"#### 📷 {file.name}")
@@ -312,6 +319,9 @@ if uploaded_files:
                 caption="Detections",
                 width=550,
             )
+
+            # Keep annotated image for download later
+            annotated_images.append((file.name, plotted_img))
 
             # Summary text
             if len(result.boxes) == 0:
@@ -338,9 +348,10 @@ if uploaded_files:
         if all_rows:
             full_results_df = pd.DataFrame(all_rows)
             st.session_state["full_results_df"] = full_results_df
+            st.session_state["annotated_images"] = annotated_images
         else:
-            full_results_df = None
             st.session_state["full_results_df"] = None
+            st.session_state["annotated_images"] = []
 
         # After processing all images: single combined bar chart
         if sum(global_counts.values()) > 0:
@@ -367,19 +378,38 @@ if uploaded_files:
         else:
             st.info("No defects detected in any of the uploaded images.")
 
-        # -------- Export flow: Finish + Download --------
+        # -------- Export flow: Finish + Download (CSV + annotated images) --------
         if st.session_state["full_results_df"] is not None:
             st.markdown("### Export results")
             if st.button("Finish defect detection"):
                 st.session_state["show_download"] = True
 
             if st.session_state["show_download"]:
-                csv = st.session_state["full_results_df"].to_csv(index=False).encode("utf-8")
+                # Build ZIP (CSV + annotated images)
+                full_results_df = st.session_state["full_results_df"]
+                annotated_images = st.session_state["annotated_images"]
+
+                csv_bytes = full_results_df.to_csv(index=False).encode("utf-8")
+
+                zip_buffer = io.BytesIO()
+                with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                    # CSV
+                    zf.writestr("circuitguard_detection_results.csv", csv_bytes)
+                    # Annotated images
+                    for name, pil_img in annotated_images:
+                        img_bytes_io = io.BytesIO()
+                        pil_img.save(img_bytes_io, format="PNG")
+                        img_bytes_io.seek(0)
+                        base = os.path.splitext(name)[0]
+                        zf.writestr(f"annotated_{base}.png", img_bytes_io.getvalue())
+
+                zip_buffer.seek(0)
+
                 st.download_button(
-                    "Download detection report (CSV)",
-                    data=csv,
-                    file_name="circuitguard_detection_results.csv",
-                    mime="text/csv",
+                    "Download results (CSV + annotated images, ZIP)",
+                    data=zip_buffer,
+                    file_name="circuitguard_results.zip",
+                    mime="application/zip",
                 )
 else:
     st.info("Upload one or more PCB images to start detection.")
