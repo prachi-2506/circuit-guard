@@ -29,7 +29,7 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap');
     @import url('https://fonts.googleapis.com/css2?family=Bitcount+Prop+Single:wght@400;600&display=swap');
 
     html, body, [data-testid="stAppViewContainer"] {
@@ -43,7 +43,7 @@ st.markdown(
         border-right: 1px solid #d0e2ff;
     }
 
-    /* Make sidebar text dark so it's readable */
+    /* Sidebar text */
     [data-testid="stSidebar"] * {
         color: #102a43 !important;
     }
@@ -62,8 +62,10 @@ st.markdown(
     h2, h3 {
         font-weight: 600;
         color: #13406b;
+        font-family: 'Space Grotesk', 'Poppins', system-ui, -apple-system, sans-serif;
     }
 
+    /* CTA buttons with light animation */
     .stButton>button {
         border-radius: 999px;
         padding: 0.5rem 1.25rem;
@@ -71,13 +73,33 @@ st.markdown(
         font-weight: 500;
         background: #85c5ff;
         color: #0f172a;
+        box-shadow: 0 8px 14px rgba(148, 163, 184, 0.28);
+        transition: transform 0.18s ease-out, box-shadow 0.18s ease-out, background 0.18s ease-out;
+        animation: pulse-soft 2.4s ease-in-out infinite;
     }
 
     .stButton>button:hover {
         background: #63b1ff;
+        transform: translateY(-1px) scale(1.01);
+        box-shadow: 0 12px 22px rgba(148, 163, 184, 0.38);
     }
 
-    /* NEW: Light theme for all download buttons so text is visible */
+    @keyframes pulse-soft {
+        0% {
+            transform: translateY(0);
+            box-shadow: 0 8px 14px rgba(148, 163, 184, 0.25);
+        }
+        50% {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 22px rgba(148, 163, 184, 0.4);
+        }
+        100% {
+            transform: translateY(0);
+            box-shadow: 0 8px 14px rgba(148, 163, 184, 0.25);
+        }
+    }
+
+    /* Download buttons – light so text is visible */
     [data-testid="stDownloadButton"] > button {
         background: #e5e7eb !important;
         color: #111827 !important;
@@ -125,6 +147,7 @@ st.markdown(
         font-size: 1.15rem;
         font-weight: 600;
         color: #111827;
+        font-family: 'Space Grotesk', 'Poppins', system-ui, sans-serif;
     }
 
     .logo-circle {
@@ -149,12 +172,13 @@ st.markdown(
     }
 
     .main-title {
-        font-family: 'Bitcount Prop Single', system-ui, -apple-system,
+        font-family: 'Space Grotesk', system-ui, -apple-system,
                      BlinkMacSystemFont, 'Poppins', sans-serif;
         font-weight: 600;
         font-size: 2.8rem;
         text-align: center;
         color: #13406b;
+        letter-spacing: 0.03em;
     }
 
     .subtitle-text {
@@ -163,7 +187,6 @@ st.markdown(
         text-align: center;
     }
 
-    /* NEW: instructions card + defect badges */
     .instruction-card {
         border-radius: 18px;
         background: #ffffff;
@@ -192,6 +215,48 @@ st.markdown(
         background: #e0f2fe;
         font-size: 0.8rem;
         color: #13406b;
+    }
+
+    /* Robotic success message */
+    .robot-success {
+        margin: 1rem 0;
+        padding: 0.75rem 1rem;
+        border-radius: 10px;
+        background: radial-gradient(circle at 0 0, #bbf7d0 0, #bbf7d0 10%, #0f172a 55%);
+        color: #e5e7eb;
+        font-family: 'JetBrains Mono', SFMono-Regular, Menlo, monospace;
+        font-size: 0.85rem;
+        letter-spacing: 0.08em;
+        position: relative;
+        overflow: hidden;
+    }
+    .robot-success::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: repeating-linear-gradient(
+            0deg,
+            rgba(15, 23, 42, 0.0),
+            rgba(15, 23, 42, 0.0) 2px,
+            rgba(148, 163, 184, 0.18) 3px
+        );
+        mix-blend-mode: soft-light;
+        opacity: 0.7;
+        pointer-events: none;
+        animation: scanlines 6s linear infinite;
+    }
+    @keyframes scanlines {
+        0% { transform: translateY(-4px); }
+        100% { transform: translateY(4px); }
+    }
+    .robot-label {
+        color: #bbf7d0;
+        margin-right: 0.5rem;
+    }
+
+    /* Keep charts responsive and fully visible */
+    .vega-embed, .vega-embed canvas {
+        max-width: 100% !important;
     }
     </style>
     """,
@@ -278,7 +343,6 @@ with st.sidebar:
     )
 
 # ------------------ MAIN LAYOUT ------------------
-# Logo + main heading (centered, big)
 st.markdown(
     """
     <div class="header-container">
@@ -319,11 +383,11 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# NEW: compact instructions card
+# Instructions card
 st.markdown(
     """
     <div class="instruction-card">
-      <strong>How to use CircuitGuard:</strong>
+      <strong>🧭 How to use CircuitGuard:</strong>
       <ol>
         <li>Prepare clear PCB images (top view, good lighting).</li>
         <li>Upload one or more images using the box below.</li>
@@ -336,7 +400,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# NEW: highlighted defect types
+# Highlight defect types
 st.markdown(
     """
     **Defect types detected by this model:**
@@ -374,7 +438,7 @@ if uploaded_files:
     else:
         global_counts = Counter()
         all_rows = []
-        image_results = []  # NEW: store original, annotated, result, loc_rows per image
+        image_results = []  # original, annotated, result, loc_rows
 
         # Run detection for all images first
         for file in uploaded_files:
@@ -383,11 +447,9 @@ if uploaded_files:
             with st.spinner(f"Running detection on {file.name}..."):
                 plotted_img, result = run_inference(model, img)
 
-            # Update global defect counts
             counts = get_class_counts(result, class_names)
             global_counts.update(counts)
 
-            # Defect locations rows for this image
             loc_rows = get_defect_locations(result, class_names, file.name)
             all_rows.extend(loc_rows)
 
@@ -412,7 +474,19 @@ if uploaded_files:
             st.session_state["full_results_df"] = None
             st.session_state["annotated_images"] = []
 
-        # NEW: overview grid of all annotated images
+        # Robotic animated success banner
+        st.markdown(
+            """
+            <div class="robot-success">
+              <span class="robot-label">[SYSTEM]</span>
+              DEFECT SCAN COMPLETE — ANALYSIS DASHBOARD ONLINE.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.success("Detection completed. Scroll down to view detailed results and download options.")
+
+        # Overview grid
         if image_results:
             st.markdown("### Annotated results overview")
             grid_cols = st.columns(3)
@@ -425,7 +499,7 @@ if uploaded_files:
                         use_column_width=True,
                     )
 
-            # NEW: detailed before/after for each image
+            # Detailed before/after for each image
             st.markdown("### Detailed view per image")
             for idx, res in enumerate(image_results):
                 st.markdown(f"#### 📷 {res['name']}")
@@ -445,7 +519,7 @@ if uploaded_files:
                         use_column_width=True,
                     )
 
-                    # NEW: single annotated image download button
+                    # single annotated image download
                     img_bytes = io.BytesIO()
                     res["annotated"].save(img_bytes, format="PNG")
                     img_bytes.seek(0)
@@ -474,32 +548,60 @@ if uploaded_files:
 
                 st.markdown("---")
 
-        # UPDATED: make bar chart more compact so full graph is visible
+        # --------- Overall charts (bar + donut) ----------
         if sum(global_counts.values()) > 0:
             st.subheader("Overall defect distribution across all uploaded images")
             global_df = pd.DataFrame(
-                {"Defect Type": list(global_counts.keys()),
-                 "Count": list(global_counts.values())}
+                {
+                    "Defect Type": list(global_counts.keys()),
+                    "Count": list(global_counts.values()),
+                }
             )
 
-            chart = (
-                alt.Chart(global_df)
-                .mark_bar(size=40)
-                .encode(
-                    x=alt.X(
-                        "Defect Type:N",
-                        sort="-y",
-                        axis=alt.Axis(labelAngle=0),
-                    ),
-                    y=alt.Y("Count:Q"),
-                    tooltip=["Defect Type", "Count"],
-                )
-                .properties(
-                    height=280  # slightly smaller height for better fit
-                )
-            )
+            col_bar, col_donut = st.columns([2.2, 1])
 
-            st.altair_chart(chart, use_container_width=True)
+            # FIXED bar chart – fits without fullscreen
+            with col_bar:
+                bar_chart = (
+                    alt.Chart(global_df)
+                    .mark_bar(size=45)
+                    .encode(
+                        x=alt.X(
+                            "Defect Type:N",
+                            sort="-y",
+                            axis=alt.Axis(labelAngle=0),
+                        ),
+                        y=alt.Y("Count:Q"),
+                        tooltip=["Defect Type", "Count"],
+                    )
+                    .properties(
+                        height=260,
+                        padding={"left": 5, "right": 5, "top": 10, "bottom": 10},
+                    )
+                    .configure_view(
+                        strokeWidth=0
+                    )
+                )
+                st.altair_chart(bar_chart, use_container_width=True)
+
+            # NEW donut chart
+            with col_donut:
+                st.markdown("#### Defect type share")
+                donut_chart = (
+                    alt.Chart(global_df)
+                    .mark_arc(innerRadius=50, outerRadius=90)
+                    .encode(
+                        theta=alt.Theta("Count:Q", stack=True),
+                        color=alt.Color(
+                            "Defect Type:N",
+                            legend=alt.Legend(title="Defect type"),
+                        ),
+                        tooltip=["Defect Type", "Count"],
+                    )
+                    .properties(height=260)
+                )
+                st.altair_chart(donut_chart, use_container_width=True)
+
         else:
             st.info("No defects detected in any of the uploaded images.")
 
