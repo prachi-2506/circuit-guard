@@ -562,7 +562,7 @@ if uploaded_files:
 
                 st.markdown("---")
 
-               # --------- Overall charts (bar + donut) ----------
+                       # --------- Overall charts (bar then donut) ----------
         if sum(global_counts.values()) > 0:
             st.subheader("Overall defect distribution across all uploaded images")
             global_df = pd.DataFrame(
@@ -572,53 +572,52 @@ if uploaded_files:
                 }
             )
 
-            # 2 columns, left = bar, right = donut
-            col_bar, col_donut = st.columns([3, 2])
-
-            with col_bar:
-                bar_chart = (
-                    alt.Chart(global_df)
-                    .mark_bar(size=45)
-                    .encode(
-                        x=alt.X(
-                            "Defect Type:N",
-                            sort="-y",
-                            axis=alt.Axis(labelAngle=0),
-                        ),
-                        y=alt.Y("Count:Q"),
-                        tooltip=["Defect Type", "Count"],
-                    )
-                    .properties(
-                        height=260,
-                        padding={"left": 5, "right": 5, "top": 10, "bottom": 10},
-                    )
-                    .configure_view(strokeWidth=0)
+            # 1️⃣ Bar chart
+            bar_chart = (
+                alt.Chart(global_df)
+                .mark_bar(size=45)
+                .encode(
+                    x=alt.X(
+                        "Defect Type:N",
+                        sort="-y",
+                        axis=alt.Axis(labelAngle=0),
+                    ),
+                    y=alt.Y("Count:Q"),
+                    tooltip=["Defect Type", "Count"],
                 )
-                st.altair_chart(bar_chart, use_container_width=True)
-
-            with col_donut:
-                st.markdown("#### Defect type share")
-                donut_chart = (
-                    alt.Chart(global_df)
-                    .mark_arc(innerRadius=55, outerRadius=100)
-                    .encode(
-                        theta=alt.Theta("Count:Q", stack=True),
-                        color=alt.Color(
-                            "Defect Type:N",
-                            legend=alt.Legend(title="Defect type"),
-                        ),
-                        tooltip=["Defect Type", "Count"],
-                    )
-                    .properties(
-                        width=230,
-                        height=230,
-                        padding={"left": 0, "right": 0, "top": 10, "bottom": 10},
-                    )
+                .properties(
+                    height=260,
+                    padding={"left": 5, "right": 5, "top": 10, "bottom": 10},
                 )
-                # don't stretch too much; keep it compact in its column
-                st.altair_chart(donut_chart, use_container_width=False)
+                .configure_view(strokeWidth=0)
+            )
+            st.altair_chart(bar_chart, use_container_width=True)
+
+            # some spacing
+            st.markdown("#### Defect type share")
+
+            # 2️⃣ Donut chart directly under it
+            donut_chart = (
+                alt.Chart(global_df)
+                .mark_arc(innerRadius=55, outerRadius=100)
+                .encode(
+                    theta=alt.Theta("Count:Q", stack=True),
+                    color=alt.Color(
+                        "Defect Type:N",
+                        legend=alt.Legend(title="Defect type"),
+                    ),
+                    tooltip=["Defect Type", "Count"],
+                )
+                .properties(
+                    height=260,
+                    padding={"left": 0, "right": 0, "top": 10, "bottom": 10},
+                )
+            )
+            st.altair_chart(donut_chart, use_container_width=True)
+
         else:
             st.info("No defects detected in any of the uploaded images.")
+
 
 
         # -------- Export flow: Finish + Download (CSV + annotated images) --------
