@@ -11,12 +11,9 @@ import altair as alt
 
 # ------------------ CONFIG ------------------
 
-# Local path on your laptop
 LOCAL_MODEL_PATH = r"C:\Users\asus\OneDrive\Desktop\yolo deploy\best.pt"
-# Path used on Streamlit Cloud (best.pt in same folder as app.py)
 CLOUD_MODEL_PATH = "best.pt"
 
-# Automatically pick local path if it exists, else use cloud path
 MODEL_PATH = LOCAL_MODEL_PATH if os.path.exists(LOCAL_MODEL_PATH) else CLOUD_MODEL_PATH
 
 CONFIDENCE = 0.25
@@ -80,6 +77,15 @@ st.markdown(
         background: #63b1ff;
     }
 
+    /* NEW: Light theme for all download buttons so text is visible */
+    [data-testid="stDownloadButton"] > button {
+        background: #e5e7eb !important;
+        color: #111827 !important;
+        border-radius: 999px !important;
+        border: 1px solid #cbd5f5 !important;
+        font-weight: 500;
+    }
+
     .upload-box {
         border-radius: 18px;
         border: 1px dashed #a3c9ff;
@@ -91,7 +97,7 @@ st.markdown(
     [data-testid="stFileUploader"] div,
     [data-testid="stFileUploader"] span,
     [data-testid="stFileUploader"] label {
-        color: #f9fafb !important;  /* light text on dark drop area */
+        color: #f9fafb !important;
     }
     [data-testid="stFileUploader"] button {
         background: #111827 !important;
@@ -155,6 +161,37 @@ st.markdown(
         font-size: 0.95rem;
         color: #334e68;
         text-align: center;
+    }
+
+    /* NEW: instructions card + defect badges */
+    .instruction-card {
+        border-radius: 18px;
+        background: #ffffff;
+        border: 1px solid #dbeafe;
+        padding: 1rem 1.25rem;
+        margin: 1rem 0;
+        font-size: 0.9rem;
+    }
+    .instruction-card ol {
+        margin-left: 1.1rem;
+        padding-left: 0.5rem;
+    }
+    .instruction-card li {
+        margin-bottom: 0.25rem;
+    }
+
+    .defect-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin-top: 0.4rem;
+    }
+    .defect-badge {
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        background: #e0f2fe;
+        font-size: 0.8rem;
+        color: #13406b;
     }
     </style>
     """,
@@ -282,6 +319,39 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# NEW: compact instructions card
+st.markdown(
+    """
+    <div class="instruction-card">
+      <strong>How to use CircuitGuard:</strong>
+      <ol>
+        <li>Prepare clear PCB images (top view, good lighting).</li>
+        <li>Upload one or more images using the box below.</li>
+        <li>Wait for the model to run – we’ll generate annotated results.</li>
+        <li>Review the overview grid, then scroll to see before/after views for each image.</li>
+        <li>Download individual annotated images or a ZIP with CSV + all annotated outputs.</li>
+      </ol>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# NEW: highlighted defect types
+st.markdown(
+    """
+    **Defect types detected by this model:**
+    <div class="defect-badges">
+      <span class="defect-badge">Missing hole</span>
+      <span class="defect-badge">Mouse bite</span>
+      <span class="defect-badge">Open circuit</span>
+      <span class="defect-badge">Short</span>
+      <span class="defect-badge">Spur</span>
+      <span class="defect-badge">Spurious copper</span>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 st.markdown("### Upload PCB Images")
 
 with st.container():
@@ -304,56 +374,107 @@ if uploaded_files:
     else:
         global_counts = Counter()
         all_rows = []
-        annotated_images = []
+        image_results = []  # NEW: store original, annotated, result, loc_rows per image
 
+        # Run detection for all images first
         for file in uploaded_files:
-            st.markdown(f"#### 📷 {file.name}")
             img = Image.open(file).convert("RGB")
 
-            with st.spinner("Running detection..."):
+            with st.spinner(f"Running detection on {file.name}..."):
                 plotted_img, result = run_inference(model, img)
 
-            # Show detection image (smaller)
-            st.image(
-                plotted_img,
-                caption="Detections",
-                width=550,
+            # Update global defect counts
+            counts = get_class_counts(result, class_names)
+            global_counts.update(counts)
+
+            # Defect locations rows for this image
+            loc_rows = get_defect_locations(result, class_names, file.name)
+            all_rows.extend(loc_rows)
+
+            image_results.append(
+                {
+                    "name": file.name,
+                    "original": img,
+                    "annotated": plotted_img,
+                    "result": result,
+                    "loc_rows": loc_rows,
+                }
             )
-
-            # Keep annotated image for download later
-            annotated_images.append((file.name, plotted_img))
-
-            # Summary text
-            if len(result.boxes) == 0:
-                st.success("No defects detected in this image.")
-            else:
-                st.info(f"Detected **{len(result.boxes)}** potential defect(s).")
-
-                # Update global defect counts
-                counts = get_class_counts(result, class_names)
-                global_counts.update(counts)
-
-                # Defect locations for this image (table on screen)
-                loc_rows = get_defect_locations(result, class_names, file.name)
-                all_rows.extend(loc_rows)
-
-                if loc_rows:
-                    loc_df = pd.DataFrame(loc_rows)
-                    st.markdown("**Defect locations (bounding boxes in pixels):**")
-                    st.dataframe(loc_df.drop(columns=["Image"]), use_container_width=True)
-
-            st.markdown("---")
 
         # Build full results DF for export (all images)
         if all_rows:
             full_results_df = pd.DataFrame(all_rows)
             st.session_state["full_results_df"] = full_results_df
-            st.session_state["annotated_images"] = annotated_images
+            st.session_state["annotated_images"] = [
+                (res["name"], res["annotated"]) for res in image_results
+            ]
         else:
             st.session_state["full_results_df"] = None
             st.session_state["annotated_images"] = []
 
-        # After processing all images: single combined bar chart
+        # NEW: overview grid of all annotated images
+        if image_results:
+            st.markdown("### Annotated results overview")
+            grid_cols = st.columns(3)
+            for idx, res in enumerate(image_results):
+                col = grid_cols[idx % 3]
+                with col:
+                    st.image(
+                        res["annotated"],
+                        caption=res["name"],
+                        use_column_width=True,
+                    )
+
+            # NEW: detailed before/after for each image
+            st.markdown("### Detailed view per image")
+            for idx, res in enumerate(image_results):
+                st.markdown(f"#### 📷 {res['name']}")
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.image(
+                        res["original"],
+                        caption="Original image",
+                        use_column_width=True,
+                    )
+
+                with col2:
+                    st.image(
+                        res["annotated"],
+                        caption="Annotated detections",
+                        use_column_width=True,
+                    )
+
+                    # NEW: single annotated image download button
+                    img_bytes = io.BytesIO()
+                    res["annotated"].save(img_bytes, format="PNG")
+                    img_bytes.seek(0)
+                    base = os.path.splitext(res["name"])[0]
+                    st.download_button(
+                        "Download annotated image",
+                        data=img_bytes,
+                        file_name=f"annotated_{base}.png",
+                        mime="image/png",
+                        key=f"download_single_{idx}",
+                    )
+
+                result = res["result"]
+                if len(result.boxes) == 0:
+                    st.success("No defects detected in this image.")
+                else:
+                    st.info(f"Detected **{len(result.boxes)}** potential defect(s).")
+
+                if res["loc_rows"]:
+                    loc_df = pd.DataFrame(res["loc_rows"])
+                    st.markdown("**Defect locations (bounding boxes in pixels):**")
+                    st.dataframe(
+                        loc_df.drop(columns=["Image"]),
+                        use_container_width=True,
+                    )
+
+                st.markdown("---")
+
+        # UPDATED: make bar chart more compact so full graph is visible
         if sum(global_counts.values()) > 0:
             st.subheader("Overall defect distribution across all uploaded images")
             global_df = pd.DataFrame(
@@ -365,13 +486,17 @@ if uploaded_files:
                 alt.Chart(global_df)
                 .mark_bar(size=40)
                 .encode(
-                    x=alt.X("Defect Type:N",
-                            sort="-y",
-                            axis=alt.Axis(labelAngle=0)),
+                    x=alt.X(
+                        "Defect Type:N",
+                        sort="-y",
+                        axis=alt.Axis(labelAngle=0),
+                    ),
                     y=alt.Y("Count:Q"),
                     tooltip=["Defect Type", "Count"],
                 )
-                .properties(height=350)
+                .properties(
+                    height=280  # slightly smaller height for better fit
+                )
             )
 
             st.altair_chart(chart, use_container_width=True)
@@ -385,7 +510,6 @@ if uploaded_files:
                 st.session_state["show_download"] = True
 
             if st.session_state["show_download"]:
-                # Build ZIP (CSV + annotated images)
                 full_results_df = st.session_state["full_results_df"]
                 annotated_images = st.session_state["annotated_images"]
 
