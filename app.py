@@ -618,7 +618,8 @@ if uploaded_files:
                         padding={"left": 0, "right": 0, "top": 10, "bottom": 10},
                     )
                 )
-                st.altair_chart(donut_chart, use_column_width=True)
+                st.altair_chart(donut_chart, use_container_width=True)
+
 
         else:
             st.info("No defects detected in any of the uploaded images.")
